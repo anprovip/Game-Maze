@@ -1,260 +1,180 @@
+import os
 import pygame
+import random
 from collections import deque
 from entities.player import Player
 from config import BLUE, CELL_SIZE
 
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+image_path = os.path.join(project_root, 'assets', 'img', 'cat.png')
+
 class AIPlayer(Player):
     """
-    Lớp đại diện cho người chơi AI sử dụng BFS,
-    độ khó chỉ ảnh hưởng đến tốc độ di chuyển.
+    Lớp đại diện cho người chơi AI sử dụng BFS, với khả năng đi đến điểm trung gian để đánh lừa.
+    Độ khó ảnh hưởng đến tốc độ, tần suất điểm trung gian, và phản ứng với người chơi.
     """
 
-    def __init__(self, x, y, difficulty="easy", image_path='assets/img/player.png'):
-        """
-        Khởi tạo người chơi AI tại vị trí (x, y).
-        
-        Args:
-            x (int): Tọa độ x ban đầu (ô)
-            y (int): Tọa độ y ban đầu (ô)
-            difficulty (str): "easy", "medium", hoặc "hard"
-            image_path (str): Đường dẫn tới hình ảnh của người chơi
-        """
+    def __init__(self, x, y, difficulty="easy", image_path=image_path):
         super().__init__(x, y, color=BLUE, image_path=image_path)
         self.difficulty = difficulty
         self.path = []
         self.path_index = 0
         self.move_timer = 0
         self.update_rate = self._get_update_rate()
-        self.recalculate_counter = 0  # Đếm để tính lại đường đi định kỳ
-        # For hard difficulty freeze cycle
+        self.recalculate_counter = 0
         self.hard_freezing = False
         self.last_freeze_cycle_tick = pygame.time.get_ticks()
         self.freeze_start_tick = None
+        self.target = None  # Điểm mục tiêu hiện tại (điểm trung gian hoặc đích)
+        self.hesitation_timer = 0  # Bộ đếm để giả vờ "do dự"
+        self.hesitation_duration = 30  # Số khung hình dừng lại để do dự
+        self.is_hesitating = False  # Trạng thái do dự
 
     def _get_update_rate(self):
-        """
-        Xác định tốc độ di chuyển dựa trên độ khó.
-        Returns:
-            int: số khung hình giữa mỗi lần di chuyển
-        """
-        # Giảm giá trị để AI di chuyển nhanh hơn
+        """Xác định tốc độ di chuyển dựa trên độ khó."""
         if self.difficulty == "easy":
-            return 35  # rất chậm
+            return 10  # Chậm hơn một chút để người chơi dễ vượt
         elif self.difficulty == "medium":
-            return 25  # chậm hơn một chút
+            return 10  # Tốc độ trung bình
         else:  # hard
-            return 15   # di chuyển mỗi frame, cực nhanh
+            return 12  # Rất nhanh để cạnh tranh
 
-    def _calculate_bfs_path(self, maze):
-        """
-        Tìm đường đi từ vị trí hiện tại đến đích bằng BFS.
-        """
-        start = (self.grid_x, self.grid_y)
-        end = maze.end_pos
-        
-        # Debug
-        print(f"AI tại: {start}, mục tiêu: {end}")
-        
-        # Kiểm tra xem AI có nằm trên tường không
-        if maze.is_wall(self.grid_x, self.grid_y):
-            print("LỖI: AI đang nằm trên tường! Di chuyển AI đến vị trí bắt đầu.")
-            self.grid_x, self.grid_y = maze.start_pos
-            self.x = self.grid_x * CELL_SIZE + CELL_SIZE // 2
-            self.y = self.grid_y * CELL_SIZE + CELL_SIZE // 2
-            start = maze.start_pos
-        
-        # Nếu đã ở đích, không cần tìm đường
-        if start == end:
+    def _get_neighbors(self, x, y, maze):
+        """Lấy các ô lân cận hợp lệ."""
+        neighbors = []
+        directions = [(-1, 0), (0, 1), (1, 0), (0, -1)]  # Lên, phải, xuống, trái
+        for dx, dy in directions:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < maze.width and 0 <= ny < maze.height and not maze.is_wall(nx, ny):
+                neighbors.append((nx, ny))
+        return neighbors
+
+    def _bfs(self, maze, start, goal):
+        """Tìm đường ngắn nhất từ start đến goal bằng BFS."""
+        queue = deque([(start, [])])
+        visited = {start}
+        while queue:
+            (x, y), path = queue.popleft()
+            if (x, y) == goal:
+                return path + [(x, y)]
+            for nx, ny in self._get_neighbors(x, y, maze):
+                if (nx, ny) not in visited:
+                    visited.add((nx, ny))
+                    queue.append(((nx, ny), path + [(x, y)]))
+        return []
+
+    def _get_random_waypoint(self, maze, goal, player_pos):
+        """Chọn điểm trung gian ngẫu nhiên, tránh gần đích hoặc người chơi."""
+        valid_points = [
+            (x, y) for x in range(maze.width) for y in range(maze.height)
+            if not maze.is_wall(x, y) and (x, y) != goal and (x, y) != (self.grid_x, self.grid_y)
+        ]
+        # Lọc điểm dựa trên khoảng cách
+        min_distance_to_goal = 4 if self.difficulty == "hard" else 2
+        valid_points = [
+            p for p in valid_points
+            if abs(p[0] - goal[0]) + abs(p[1] - goal[1]) >= min_distance_to_goal
+            and abs(p[0] - player_pos[0]) + abs(p[1] - player_pos[1]) >= 2
+        ]
+        return random.choice(valid_points) if valid_points else None
+
+    def calculate_path(self, maze, player_pos=None):
+        """Tính toán đường đi đến điểm trung gian hoặc đích."""
+        current_pos = (self.grid_x, self.grid_y)
+        goal = maze.end_pos
+
+        # Nếu đã ở đích, xóa đường đi
+        if current_pos == goal:
             self.path = []
             self.path_index = 0
+            self.target = None
             return
 
-        queue = deque([start])
-        visited = {start: None}
+        # Kiểm tra khoảng cách đến đích
+        bot_dist = abs(current_pos[0] - goal[0]) + abs(current_pos[1] - goal[1])
+        player_dist = abs(player_pos[0] - goal[0]) + abs(player_pos[1] - goal[1]) if player_pos else float('inf')
 
-        # Thực hiện BFS
-        while queue:
-            x, y = queue.popleft()
-            if (x, y) == end:
-                break
+        # Quyết định mục tiêu dựa trên độ khó và vị trí người chơi
+        if self.difficulty == "hard" or player_dist < bot_dist * 0.8:
+            self.target = goal  # Đi thẳng đến đích
+            self.update_rate = 8
+        elif not self.target or current_pos == self.target or random.random() < 0.1:
+            # Chọn điểm trung gian mới nếu chưa có, đã đến điểm hiện tại, hoặc ngẫu nhiên
+            self.target = self._get_random_waypoint(maze, goal, player_pos) or goal
+        # Nếu mục tiêu là đích, có xác suất chọn lại điểm trung gian
+        elif self.target == goal and random.random() < 0.3 and self.difficulty != "hard":
+            self.target = self._get_random_waypoint(maze, goal, player_pos) or goal
 
-            # Debug để xem có lỗi trong get_neighbors không
-            neighbors = maze.get_neighbors(x, y)
-            
-            for nx, ny in neighbors:
-                if (nx, ny) not in visited:
-                    queue.append((nx, ny))
-                    visited[(nx, ny)] = (x, y)
+        # Tính đường đi đến mục tiêu
+        self.path = self._bfs(maze, current_pos, self.target)
+        self.path_index = 0
+        print(f"AI target: {self.target}, Path length: {len(self.path)}")
 
-        # Tạo đường đi
-        if end in visited:
-            path = []
-            current = end
-            while current != start:
-                path.append(current)
-                current = visited[current]
-            path.reverse()  # Đảo ngược để có đường đi từ start đến end
-            self.path = path
-            self.path_index = 0
-            print(f"Tìm thấy đường đi: {len(self.path)} bước")
-        else:
-            self.path = []
-            self.path_index = 0
-            print("Không tìm thấy đường đi!")
-            # Debug: In cấu trúc mê cung
-            print("Cấu trúc mê cung:")
-            for y in range(maze.height):
-                row = ""
-                for x in range(maze.width):
-                    if (x, y) == start:
-                        row += "S"
-                    elif (x, y) == end:
-                        row += "E"
-                    elif maze.is_wall(x, y):
-                        row += "#"
-                    else:
-                        row += "."
-                print(row)
-         
-            
-            # Debug
-            print(f"AI tại: {start}, mục tiêu: {end}")
-            
-            # Kiểm tra xem AI có nằm trên tường không
-            if maze.is_wall(self.grid_x, self.grid_y):
-                print("LỖI: AI đang nằm trên tường! Di chuyển AI đến vị trí bắt đầu.")
-                self.grid_x, self.grid_y = maze.start_pos
-                self.x = self.grid_x * CELL_SIZE + CELL_SIZE // 2
-                self.y = self.grid_y * CELL_SIZE + CELL_SIZE // 2
-                start = maze.start_pos
-            
-            # Nếu đã ở đích, không cần tìm đường
-            if start == end:
-                self.path = []
-                self.path_index = 0
-                return
-
-            queue = deque([start])
-            visited = {start: None}
-
-            # Thực hiện BFS
-            while queue:
-                x, y = queue.popleft()
-                if (x, y) == end:
-                    break
-
-                # Debug để xem có lỗi trong get_neighbors không
-                neighbors = maze.get_neighbors(x, y)
-                
-                for nx, ny in neighbors:
-                    if (nx, ny) not in visited:
-                        queue.append((nx, ny))
-                        visited[(nx, ny)] = (x, y)
-
-            # Tạo đường đi
-            if end in visited:
-                path = []
-                current = end
-                while current != start:
-                    path.append(current)
-                    current = visited[current]
-                path.reverse()  # Đảo ngược để có đường đi từ start đến end
-                self.path = path
-                self.path_index = 0
-                print(f"Tìm thấy đường đi: {len(self.path)} bước")
-            else:
-                self.path = []
-                self.path_index = 0
-                print("Không tìm thấy đường đi!")
-                # Debug: In cấu trúc mê cung
-                print("Cấu trúc mê cung:")
-                for y in range(maze.height):
-                    row = ""
-                    for x in range(maze.width):
-                        if (x, y) == start:
-                            row += "S"
-                        elif (x, y) == end:
-                            row += "E"
-                        elif maze.is_wall(x, y):
-                            row += "#"
-                        else:
-                            row += "."
-                    print(row)
-               
-
-    def calculate_path(self, maze):
-        """
-        Tính toán lại đường đi (luôn dùng BFS).
-        """
-        self._calculate_bfs_path(maze)
-
-    def update(self, maze):
-        """
-        Cập nhật vị trí AI dựa trên đường đi đã tính.
-        """
+    def update(self, maze, player_pos=None):
+        """Cập nhật vị trí AI dựa trên đường đi và trạng thái."""
         now = pygame.time.get_ticks()
-        # Hard-mode: freeze every 15s for 2s
+
+        # Xử lý chế độ đóng băng ở hard
         if self.difficulty == "hard":
             if not self.hard_freezing and now - self.last_freeze_cycle_tick >= 10000:
                 self.hard_freezing = True
                 self.freeze_start_tick = now
             if self.hard_freezing:
-                if now - self.freeze_start_tick < 2000:
+                if now - self.freeze_start_tick < 1000:
                     return
-                # end freeze
                 self.hard_freezing = False
                 self.last_freeze_cycle_tick = now
-        
-        # Tăng bộ đếm thời gian
+
+        # Xử lý trạng thái do dự (hesitation) để đánh lừa
+        if self.is_hesitating:
+            self.hesitation_timer += 1
+            if self.hesitation_timer >= self.hesitation_duration:
+                self.is_hesitating = False
+                self.hesitation_timer = 0
+            return
+
+        # Thỉnh thoảng giả vờ do dự (trừ chế độ hard)
+        if self.difficulty != "hard" and random.random() < 0.05 and not self.is_hesitating:
+            self.is_hesitating = True
+            self.hesitation_timer = 0
+            return
+
+        # Tăng bộ đếm
         self.move_timer += 1
         self.recalculate_counter += 1
-        
+
         # Tính lại đường đi định kỳ hoặc khi cần
-        if self.recalculate_counter >= 60 or not self.path:
-            self.calculate_path(maze)
+        if self.recalculate_counter >= 60 or not self.path or (self.path_index >= len(self.path)):
+            self.calculate_path(maze, player_pos)
             self.recalculate_counter = 0
-        
-        # Chỉ di chuyển khi đã đủ thời gian theo tốc độ
+
+        # Chỉ di chuyển khi đủ thời gian
         if self.move_timer < self.update_rate:
             return
-        
+
         # Reset bộ đếm thời gian
         self.move_timer = 0
-        
-        # Kiểm tra xem có đường đi không và chưa đến đích
+
+        # Di chuyển theo đường đi
         if self.path and self.path_index < len(self.path):
-            # Lấy tọa độ ô tiếp theo trên đường đi
             next_x, next_y = self.path[self.path_index]
-            
-            # Cập nhật hướng di chuyển
             self.dx = 1 if next_x > self.grid_x else (-1 if next_x < self.grid_x else 0)
             self.dy = 1 if next_y > self.grid_y else (-1 if next_y < self.grid_y else 0)
-            
-            # Di chuyển đến ô tiếp theo
             self.grid_x = next_x
             self.grid_y = next_y
             self.x = next_x * CELL_SIZE + CELL_SIZE // 2
             self.y = next_y * CELL_SIZE + CELL_SIZE // 2
             self.path_index += 1
-    
+
     def draw(self, screen, offset_x=0, offset_y=0):
-        """
-        Vẽ người chơi AI và đường đi (để debug).
-        """
-        # Vẽ người chơi
+        """Vẽ AI và điểm trung gian (để debug)."""
         super().draw(screen, offset_x, offset_y)
         
-        # Vẽ đường đi (để debug, có thể bỏ trong phiên bản cuối)
-        # if self.path:
-        #     for i, (x, y) in enumerate(self.path):
-        #         if i >= self.path_index:  # Chỉ vẽ phần đường đi còn lại
-        #             # Tạo hình tròn nhỏ cho mỗi điểm trên đường đi
-        #             center_x = offset_x + x * CELL_SIZE + CELL_SIZE // 2
-        #             center_y = offset_y + y * CELL_SIZE + CELL_SIZE // 2
-        #             radius = max(2, CELL_SIZE // 10)
-                    
-        #             # Màu đậm dần theo tiến trình đường đi
-        #             alpha = 50 + min(200, 50 * (len(self.path) - i) // max(1, len(self.path)))
-        #             color = (0, 100, 255)
-                    
-        #             pygame.draw.circle(screen, color, (center_x, center_y), radius)
+        # Vẽ điểm trung gian nếu có (chỉ để debug)
+        if self.target and True:  # Đổi False thành True để debug
+            tx, ty = self.target
+            pygame.draw.circle(
+                screen, (255, 255, 0),
+                (offset_x + tx * CELL_SIZE + CELL_SIZE // 2, offset_y + ty * CELL_SIZE + CELL_SIZE // 2),
+                5
+            )

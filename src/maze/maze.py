@@ -1,5 +1,14 @@
+import os
 import pygame
 from config import BLACK, GRAY, GREEN, RED, WHITE, CELL_SIZE
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+
+# Tạo đường dẫn đầy đủ cho các file hình ảnh
+wall_path = os.path.join(project_root, 'assets', 'img', 'wall.png')
+bg_path = os.path.join(project_root, 'assets', 'img', 'bg.jpg')
+player_path = os.path.join(project_root, 'assets', 'img', 'player.png')
+goal_path = os.path.join(project_root, 'assets', 'img', 'goal.png')
 
 class Maze:
     """
@@ -26,10 +35,10 @@ class Maze:
         self.end_pos = (width - 1, height - 1)
         
         # Load hình ảnh
-        self.wall_img = pygame.image.load('assets/img/wall.png')
-        self.bg_img = pygame.transform.scale(pygame.image.load('assets/img/bg.jpg'), (CELL_SIZE, CELL_SIZE))
-        self.start_img = pygame.transform.scale(pygame.image.load('assets/img/player.png'), (CELL_SIZE, CELL_SIZE))
-        self.goal_img = pygame.transform.scale(pygame.image.load('assets/img/goal.png'), (CELL_SIZE, CELL_SIZE))
+        self.wall_img = pygame.image.load(wall_path)
+        self.bg_img = pygame.transform.scale(pygame.image.load(bg_path), (CELL_SIZE, CELL_SIZE))
+        self.start_img = pygame.transform.scale(pygame.image.load(player_path), (CELL_SIZE, CELL_SIZE))
+        self.goal_img = pygame.transform.scale(pygame.image.load(goal_path), (CELL_SIZE, CELL_SIZE))
         
         # Thay đổi kích thước ảnh tường để phù hợp với CELL_SIZE
         self.wall_img = pygame.transform.scale(self.wall_img, (CELL_SIZE, CELL_SIZE))

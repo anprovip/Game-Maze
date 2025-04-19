@@ -17,7 +17,7 @@ def main():
     
     # Clock để kiểm soát FPS
     clock = pygame.time.Clock()
-    
+    pygame.mixer.init()
     # Vòng lặp game chính
     while True:
         # Xử lý các sự kiện

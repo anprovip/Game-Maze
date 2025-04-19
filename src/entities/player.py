@@ -1,12 +1,15 @@
+import os
 import pygame
 from config import CELL_SIZE, PLAYER_SPEED
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 class Player:
     """
     Lớp đại diện cho người chơi trong game.
     """
     
-    def __init__(self, x, y, color=(255, 0, 0), image_path='assets/img/player.png'):
+    def __init__(self, x, y, color=(255, 0, 0), image_path = os.path.join(project_root, 'assets', 'img', 'player.png')):
         """
         Khởi tạo người chơi tại vị trí (x, y).
         
@@ -27,9 +30,13 @@ class Player:
         self.dx = 0
         self.dy = 0
         
+        self.facing_left = False
         # Load hình ảnh người chơi từ đường dẫn tùy chọn
         self.player_img = pygame.image.load(image_path)
         self.player_img = pygame.transform.scale(self.player_img, (CELL_SIZE - 6, CELL_SIZE - 6))
+        #Tai am thanh
+        footstep_path = os.path.join(project_root, 'assets', 'sounds', 'cartoon-jump.mp3')
+        self.footstep_sound = pygame.mixer.Sound(footstep_path)
     
     def handle_input(self, keys, player_num=1):
         """
@@ -41,29 +48,50 @@ class Player:
         """
         self.dx = 0
         self.dy = 0
-        
+        sound_played = False 
+
         if player_num == 1:
             # Điều khiển cho người chơi 1 (phím mũi tên)
             if keys[pygame.K_LEFT]:
                 self.dx = -1
+                sound_played = True
+                if self.facing_left:  # Chỉ lật ảnh nếu đang hướng trái
+                    self.player_img = pygame.transform.flip(self.player_img, True, False)
+                    self.facing_left = False
             elif keys[pygame.K_RIGHT]:
                 self.dx = 1
-            
+                sound_played = True
+                if not self.facing_left:  # Chỉ lật ảnh nếu đang hướng phải
+                    self.player_img = pygame.transform.flip(self.player_img, True, False)
+                    self.facing_left = True
             if keys[pygame.K_UP]:
                 self.dy = -1
+                sound_played = True
             elif keys[pygame.K_DOWN]:
                 self.dy = 1
+                sound_played = True
         else:
             # Điều khiển cho người chơi 2 (WASD)
             if keys[pygame.K_a]:
                 self.dx = -1
+                sound_played = True
+                if not self.facing_left:  
+                    self.player_img = pygame.transform.flip(self.player_img, True, False)
+                    self.facing_left = True
             elif keys[pygame.K_d]:
                 self.dx = 1
-            
+                sound_played = True
+                if self.facing_left:
+                    self.player_img = pygame.transform.flip(self.player_img, True, False)
+                    self.facing_left = False
             if keys[pygame.K_w]:
                 self.dy = -1
+                sound_played = True
             elif keys[pygame.K_s]:
                 self.dy = 1
+                sound_played = True
+        if sound_played:
+            self.footstep_sound.play()
     
     def update(self, maze):
         """

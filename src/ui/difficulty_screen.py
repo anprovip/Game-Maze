@@ -1,7 +1,10 @@
+import os
 import pygame
 from ui.screen import Screen
 from ui.button import Button
 from config import SCREEN_WIDTH, SCREEN_HEIGHT, WHITE
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 class DifficultyScreen(Screen):
     """
@@ -18,6 +21,10 @@ class DifficultyScreen(Screen):
         self.font = pygame.font.SysFont(None, 48)
         # Back button to return to main menu
         self.back_button = Button(20, 20, 100, 40, "Back", (150,150,150), (200,200,200))
+
+        background_path = os.path.join(project_root, 'assets', 'img', 'bg-chedo.png')
+        self.background_image = pygame.image.load(background_path)
+        self.background_image = pygame.transform.scale(self.background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
 
     def enter(self): pass
     def exit(self): pass
@@ -48,6 +55,8 @@ class DifficultyScreen(Screen):
             self.manager.change_state("game")
 
     def draw(self):
+        # Vẽ hình nền
+        self.screen.blit(self.background_image, (0, 0))
         self.screen.fill((40,40,80))
         # title
         surf = self.font.render("Select Difficulty", True, WHITE)

@@ -1,8 +1,11 @@
+import os
 import pygame
 import sys
 from ui.screen import Screen
 from ui.button import Button
 from config import SCREEN_WIDTH, SCREEN_HEIGHT, BLACK, WHITE, GRAY
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 class MenuScreen(Screen):
     """
@@ -54,18 +57,24 @@ class MenuScreen(Screen):
         
         # Font cho tiêu đề
         self.title_font = pygame.font.SysFont(None, 64)
+
+        # Tải hình nền
+        background_path = os.path.join(project_root, 'assets', 'img', 'bg-menu.jpg')
+        self.background_image = pygame.image.load(background_path)
+        self.background_image = pygame.transform.scale(self.background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+    
     
     def enter(self):
         """
         Được gọi khi màn hình bắt đầu hiển thị.
         """
-        pass
-    
-    def exit(self):
-        """
-        Được gọi khi thoát khỏi màn hình.
-        """
-        pass
+        # Đường dẫn đến tệp nhạc nền
+        bg_music_path = os.path.join(project_root, 'assets', 'sounds', 'background.mp3')
+        
+        # Phát nhạc nền
+        pygame.mixer.music.load(bg_music_path)
+        pygame.mixer.music.set_volume(0.5)  # Đặt âm lượng (50%)
+        pygame.mixer.music.play(-1)  # Phát lặp vô hạn
     
     def update(self, events):
         """
@@ -115,8 +124,8 @@ class MenuScreen(Screen):
         """
         Vẽ màn hình menu.
         """
-        # Xóa màn hình
-        self.screen.fill((50, 50, 80))
+        # Vẽ hình nền
+        self.screen.blit(self.background_image, (0, 0))
         
         # Vẽ tiêu đề
         title_surface = self.title_font.render("MAZE GAME", True, WHITE)
@@ -135,3 +144,9 @@ class MenuScreen(Screen):
         info_surface = info_font.render("", True, WHITE)
         info_rect = info_surface.get_rect(center=(SCREEN_WIDTH // 2, 500))
         self.screen.blit(info_surface, info_rect)
+    def exit(self):
+        """
+        Được gọi khi thoát khỏi màn hình.
+        """
+        # Dừng nhạc nền
+        pygame.mixer.music.stop()

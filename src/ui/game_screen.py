@@ -1,5 +1,6 @@
 import pygame
 import sys
+import os
 import random
 from collections import deque
 from ui.screen import Screen
@@ -8,6 +9,7 @@ from game.level import Level
 from entities.player import Player
 from entities.ai_player import AIPlayer
 from config import SCREEN_WIDTH, SCREEN_HEIGHT, BLACK, WHITE, RED, GREEN, BLUE, CELL_SIZE
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 class GameScreen(Screen):
     """
@@ -27,6 +29,8 @@ class GameScreen(Screen):
         self.is_paused = False
         self.show_confirm_popup = False
         
+        victory_sound_path = os.path.join(project_root, 'assets', 'sounds', 'victory.mp3')
+        self.victory_sound = pygame.mixer.Sound(victory_sound_path)
         # Nút quay về menu
         self.back_button = Button(
             20, 20, 100, 40, "Back", (150, 150, 150), (200, 200, 200)
@@ -77,11 +81,11 @@ class GameScreen(Screen):
             self.players.append(Player(start_x, start_y))
         elif self.manager.game_mode == "two_players":
             self.players.append(Player(start_x, start_y))
-            self.players.append(Player(start_x, start_y, color=GREEN, image_path='assets/img/cat.png'))
+            self.players.append(Player(start_x, start_y, color=GREEN, image_path=os.path.join(project_root, 'assets', 'img', 'cat.png') ))
         elif self.manager.game_mode == "vs_ai":
             self.players.append(Player(start_x, start_y))
             # Use the selected difficulty for AI
-            ai = AIPlayer(start_x, start_y, difficulty=self.manager.difficulty, image_path='assets/img/cat.png')
+            ai = AIPlayer(start_x, start_y, difficulty=self.manager.difficulty, image_path = os.path.join(project_root, 'assets', 'img', 'cat.png'))
             # reset freeze cycle timers
             ai.last_freeze_cycle_tick = pygame.time.get_ticks()
             ai.hard_freezing = False
@@ -182,13 +186,19 @@ class GameScreen(Screen):
         Args:
             events: Danh sách các sự kiện pygame
         """
+        
         if self.game_over:
+            # Phát âm thanh chiến thắng nếu chưa phát
+            if not hasattr(self, 'victory_sound_played') or not self.victory_sound_played:
+                self.victory_sound.play()
+                self.victory_sound_played = True  # Đảm bảo âm thanh chỉ phát một lần
+
             for event in events:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_RETURN or event.key == pygame.K_ESCAPE:
                         self.manager.change_state("menu")
             return
-        
+                
         if self.is_paused or self.show_confirm_popup:
             mouse_pos = pygame.mouse.get_pos()
             mouse_clicked = False
@@ -269,14 +279,15 @@ class GameScreen(Screen):
         
         if len(self.players) > 1:
             if isinstance(self.players[1], AIPlayer):
-                self.players[1].update(self.maze)
+                # Truyền vị trí người chơi vào update của AI
+                self.players[1].update(self.maze, player_pos=(self.players[0].grid_x, self.players[0].grid_y))
             else:
                 self.players[1].handle_input(keys, 2)
                 self.players[1].update(self.maze)
             if self.players[1].is_at_end(self.maze):
                 self.game_over = True
                 self.winner = 1
-        
+                
         # Sau khi update người chơi, đếm bước
         for idx, p in enumerate(self.players):
             if (p.grid_x, p.grid_y) != prev_positions[idx]:
@@ -386,7 +397,13 @@ class GameScreen(Screen):
             self.screen.blit(hint_surface, hint_rect)
 
         # calculate elapsed seconds for time display
-        elapsed = (pygame.time.get_ticks() - self.start_ticks) / 1000
+        # Tính thời gian đã trôi qua, xem xét trạng thái tạm dừng
+        if self.is_paused or self.show_confirm_popup:
+            # Nếu đang tạm dừng, sử dụng thời điểm bắt đầu tạm dừng để tính
+            elapsed = (self.pause_start_ticks - self.start_ticks) / 1000
+        else:
+            # Nếu đang chơi bình thường, tính thời gian hiện tại
+            elapsed = (pygame.time.get_ticks() - self.start_ticks) / 1000
 
         if self.time_limit is not None:
             t = max(0, self.time_limit - elapsed)
