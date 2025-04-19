@@ -1,5 +1,6 @@
 import pygame
 import sys
+from collections import deque
 from ui.screen import Screen
 from ui.button import Button
 from game.level import Level
@@ -20,7 +21,8 @@ class GameScreen(Screen):
             manager: Game Manager quản lý các trạng thái
         """
         super().__init__(manager)
-        
+        self.show_hint = False
+        self.hint_path = []
         # Nút tạm dừng
         self.pause_button = Button(
             20, 20, 100, 40, "Pause", (150, 150, 150), (200, 200, 200)
@@ -38,39 +40,104 @@ class GameScreen(Screen):
     
     def enter(self):
         """
-        Được gọi khi màn hình bắt đầu hiển thị.
+        Được gọi khi chuyển sang màn hình game.
         """
-        # Khởi tạo cấp độ
+        # Tạo mê cung mới cho cấp độ hiện tại
         self.current_level = Level(self.manager.level)
-        
-        # Tạo mê cung
         self.maze = self.current_level.generate_maze(self.manager.maze_generator_type)
         
-        # Khởi tạo người chơi
+        # Lấy vị trí bắt đầu từ mê cung
+        start_x, start_y = self.maze.start_pos
+        
+        # Khởi tạo người chơi tại vị trí bắt đầu
         self.players = []
+        
+        if self.manager.game_mode == "single":
+            # Chế độ một người chơi
+            self.players.append(Player(start_x, start_y))
+        
+        elif self.manager.game_mode == "two_players":
+            # Chế độ hai người chơi
+            self.players.append(Player(start_x, start_y))
+            self.players.append(Player(start_x, start_y, color=GREEN))
+        
+        elif self.manager.game_mode == "vs_ai":
+            # Chế độ đấu với AI
+            self.players.append(Player(start_x, start_y))
+            # Khởi tạo AI tại CÙNG vị trí bắt đầu với người chơi
+            self.players.append(AIPlayer(start_x, start_y, difficulty=self.manager.ai_difficulty))
+        
+        # Biến trạng thái
         self.game_over = False
         self.winner = None
+        self.show_hint = False
+        self.hint_path = []
         
-        # Khởi tạo người chơi dựa trên chế độ chơi
-        if self.manager.game_mode == "single":
-            # Chế độ 1 người chơi
-            self.players.append(Player(0, 0, RED))
-            
-        elif self.manager.game_mode == "two_players":
-            # Chế độ 2 người chơi
-            self.players.append(Player(0, 0, RED))
-            self.players.append(Player(0, 1, GREEN))
-            
-        elif self.manager.game_mode == "vs_ai":
-            # Chế độ chơi với máy
-            self.players.append(Player(0, 0, RED))
-            self.players.append(AIPlayer(0, 1, self.manager.ai_difficulty))
+        # Debug: In ra cấu trúc mê cung
+        print("Cấu trúc mê cung:")
+        for y in range(self.maze.height):
+            row = ""
+            for x in range(self.maze.width):
+                if (x, y) == self.maze.start_pos:
+                    row += "S"
+                elif (x, y) == self.maze.end_pos:
+                    row += "E"
+                elif self.maze.is_wall(x, y):
+                    row += "#"
+                else:
+                    row += "."
+            print(row)
     
     def exit(self):
         """
         Được gọi khi thoát khỏi màn hình.
         """
         pass
+    
+    def calculate_hint_path(self):
+        """
+        Tính toán đường đi gợi ý từ vị trí người chơi đến đích bằng thuật toán BFS.
+        """
+        if not self.players or self.manager.game_mode != "single":
+            return
+        
+        player = self.players[0]
+        start = (player.grid_x, player.grid_y)
+        end = self.maze.end_pos
+        
+        # Nếu đã ở đích, không cần tìm đường
+        if start == end:
+            self.hint_path = []
+            return
+        
+        queue = deque([start])
+        visited = {start: None}
+        
+        # Thực hiện BFS
+        while queue:
+            x, y = queue.popleft()
+            if (x, y) == end:
+                break
+            
+            # Lấy các ô lân cận
+            neighbors = self.maze.get_neighbors(x, y)
+            
+            for nx, ny in neighbors:
+                if (nx, ny) not in visited:
+                    queue.append((nx, ny))
+                    visited[(nx, ny)] = (x, y)
+        
+        # Tạo đường đi
+        if end in visited:
+            path = []
+            current = end
+            while current != start:
+                path.append(current)
+                current = visited[current]
+            path.reverse()
+            self.hint_path = path
+        else:
+            self.hint_path = []
     
     def update(self, events):
         """
@@ -90,10 +157,17 @@ class GameScreen(Screen):
         mouse_pos = pygame.mouse.get_pos()
         mouse_clicked = False
         
-        # Kiểm tra sự kiện chuột
+        # Kiểm tra sự kiện
         for event in events:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_clicked = True
+            if event.type == pygame.KEYDOWN:
+                # Khi nhấn phím Q, hiển thị/ẩn gợi ý
+                if event.key == pygame.K_q and self.manager.game_mode == "single":
+                    if not self.show_hint:
+                        # Tính toán đường đi mỗi khi bật gợi ý
+                        self.calculate_hint_path()
+                    self.show_hint = not self.show_hint
         
         # Kiểm tra nút pause
         self.pause_button.check_hover(mouse_pos)
@@ -112,6 +186,10 @@ class GameScreen(Screen):
             if self.players[0].is_at_end(self.maze):
                 self.game_over = True
                 self.winner = 0
+        
+        # Cập nhật đường đi gợi ý nếu đang hiển thị
+        if self.show_hint and self.manager.game_mode == "single" :
+            self.calculate_hint_path()
         
         # Người chơi 2 hoặc AI
         if len(self.players) > 1:
@@ -145,41 +223,50 @@ class GameScreen(Screen):
         # Vẽ mê cung
         self.maze.draw(self.screen, offset_x, offset_y)
         
+        # Vẽ đường đi gợi ý nếu được bật
+        if self.show_hint and self.hint_path:
+            for i, (x, y) in enumerate(self.hint_path):
+                # Vẽ điểm trên đường đi
+                center_x = offset_x + x * CELL_SIZE + CELL_SIZE // 2
+                center_y = offset_y + y * CELL_SIZE + CELL_SIZE // 2
+                radius = CELL_SIZE // 6
+                
+                # Màu đậm dần theo tiến trình đường đi
+                color_value = 255 - min(200, 10 * i)
+                pygame.draw.circle(self.screen, (0, color_value, 0), (center_x, center_y), radius)
+        
         # Vẽ người chơi
         for player in self.players:
             player.draw(self.screen, offset_x, offset_y)
+        
+        # Hiển thị thông tin phím tắt nếu ở chế độ một người chơi
+        if self.manager.game_mode == "single":
+            hint_text = "Press Q for hint" if not self.show_hint else "Press Q to hide hint"
+            hint_surface = self.font.render(hint_text, True, WHITE)
+            self.screen.blit(hint_surface, (SCREEN_WIDTH - 220, 20))
         
         # Vẽ nút pause
         self.pause_button.draw(self.screen)
         
         # Vẽ thông báo chiến thắng nếu game kết thúc
-        if self.game_over and self.winner is not None:
-            # Xác định thông báo chiến thắng
-            if self.manager.game_mode == "single":
-                win_text = f"You Win! Level {self.manager.level} Completed!"
-            elif self.manager.game_mode == "two_players":
-                win_text = f"Player {self.winner + 1} Wins!"
-            else:  # vs_ai
-                if self.winner == 0:
-                    win_text = "You Win!"
+        if self.game_over:
+            # Tạo nền mờ
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 128))  # RGBA, alpha=128 để mờ
+            self.screen.blit(overlay, (0, 0))
+            
+            # Hiển thị thông báo
+            if self.winner is not None:
+                if self.manager.game_mode == "vs_ai":
+                    win_text = "You win!" if self.winner == 0 else "AI wins!"
                 else:
-                    win_text = "AI Wins!"
+                    win_text = f"Player {self.winner + 1} wins!"
+                
+                text_surface = self.font.render(win_text, True, WHITE)
+                text_rect = text_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 20))
+                self.screen.blit(text_surface, text_rect)
             
-            # Vẽ hộp thông báo
-            message_box = pygame.Rect(SCREEN_WIDTH // 4, SCREEN_HEIGHT // 3,
-                                    SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3)
-            pygame.draw.rect(self.screen, (200, 200, 200), message_box)
-            pygame.draw.rect(self.screen, (0, 0, 0), message_box, 3)
-            
-            # Vẽ thông báo
-            win_surface = self.font.render(win_text, True, (0, 0, 0))
-            win_rect = win_surface.get_rect(center=message_box.center)
-            self.screen.blit(win_surface, win_rect)
-            
-            # Vẽ hướng dẫn
-            guide_font = pygame.font.SysFont(None, 24)
-            guide_text = "Press Enter or Esc to return to menu"
-            guide_surface = guide_font.render(guide_text, True, (0, 0, 0))
-            guide_rect = guide_surface.get_rect(centerx=message_box.centerx,
-                                              top=win_rect.bottom + 20)
-            self.screen.blit(guide_surface, guide_rect)
+            # Hiển thị hướng dẫn
+            hint_surface = self.font.render("Press Enter to return to menu", True, WHITE)
+            hint_rect = hint_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 20))
+            self.screen.blit(hint_surface, hint_rect)

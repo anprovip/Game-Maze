@@ -29,9 +29,9 @@ class GameManager:
         
         # Cài đặt game
         self.game_mode = "single"  # single, two_players, vs_ai
-        self.ai_difficulty = "medium"  # easy, medium, hard
+        self.ai_difficulty = "easy"  # easy, medium, hard
         self.level = 1
-        self.maze_generator_type = "dfs"  # dfs, kruskal, prim
+        self.maze_generator_type = "prim"  # dfs, kruskal, prim
         
         # Chuyển đến màn hình menu
         self.change_state("menu")

@@ -20,12 +20,15 @@ class Player:
         self.x = x * CELL_SIZE + CELL_SIZE // 2  # Tọa độ pixel (giữa ô)
         self.y = y * CELL_SIZE + CELL_SIZE // 2
         self.color = color
-        self.radius = CELL_SIZE // 3  # Bán kính người chơi
         self.speed = PLAYER_SPEED
         
         # Hướng di chuyển hiện tại
         self.dx = 0
         self.dy = 0
+        
+        # Load hình ảnh người chơi
+        self.player_img = pygame.image.load('assets/img/player.png')
+        self.player_img = pygame.transform.scale(self.player_img, (CELL_SIZE - 6, CELL_SIZE - 6))
     
     def handle_input(self, keys, player_num=1):
         """
@@ -85,19 +88,19 @@ class Player:
     
     def draw(self, screen, offset_x=0, offset_y=0):
         """
-        Vẽ người chơi lên màn hình.
+        Vẽ người chơi lên màn hình sử dụng hình ảnh.
         
         Args:
             screen: Bề mặt pygame để vẽ
             offset_x (int): Độ dịch theo chiều ngang
             offset_y (int): Độ dịch theo chiều dọc
         """
-        pygame.draw.circle(
-            screen, 
-            self.color, 
-            (offset_x + self.x, offset_y + self.y), 
-            self.radius
-        )
+        # Tính toán vị trí để vẽ ảnh (căn giữa ô)
+        pos_x = offset_x + self.grid_x * CELL_SIZE + (CELL_SIZE - self.player_img.get_width()) // 2
+        pos_y = offset_y + self.grid_y * CELL_SIZE + (CELL_SIZE - self.player_img.get_height()) // 2
+        
+        # Vẽ hình ảnh người chơi
+        screen.blit(self.player_img, (pos_x, pos_y))
     
     def is_at_end(self, maze):
         """

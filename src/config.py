@@ -30,4 +30,6 @@ AI_DIFFICULTY_MEDIUM = "medium"
 AI_DIFFICULTY_HARD = "hard"
 
 # Tốc độ người chơi
-PLAYER_SPEED = 5
+PLAYER_SPEED = 3
+
+FPS=60
