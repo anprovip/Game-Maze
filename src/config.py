@@ -1,13 +1,13 @@
 # Cấu hình chung cho game
 
 # Cấu hình cửa sổ
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+SCREEN_WIDTH = 1600
+SCREEN_HEIGHT = 980
 TITLE = "Maze Game"
 
 # Cấu hình mê cung
-DEFAULT_MAZE_WIDTH = 20  # Số ô theo chiều ngang
-DEFAULT_MAZE_HEIGHT = 15  # Số ô theo chiều dọc
+DEFAULT_MAZE_WIDTH = 50  # Số ô theo chiều ngang
+DEFAULT_MAZE_HEIGHT = 25  # Số ô theo chiều dọc
 CELL_SIZE = 30  # Kích thước mỗi ô (pixel)
 
 # Màu sắc
@@ -30,4 +30,6 @@ AI_DIFFICULTY_MEDIUM = "medium"
 AI_DIFFICULTY_HARD = "hard"
 
 # Tốc độ người chơi
-PLAYER_SPEED = 5
+PLAYER_SPEED = 3
+
+FPS=60

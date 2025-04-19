@@ -1,7 +1,8 @@
+from logging import config
 import pygame
 import sys
 from game.game_manager import GameManager
-from config import SCREEN_WIDTH, SCREEN_HEIGHT, TITLE
+from config import SCREEN_WIDTH, SCREEN_HEIGHT, TITLE,FPS
 
 def main():
     # Khởi tạo pygame

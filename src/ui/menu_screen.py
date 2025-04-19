@@ -40,10 +40,15 @@ class MenuScreen(Screen):
             button_x, 340, button_width, button_height, 
             "Play vs AI", (200, 100, 100), (255, 150, 150)
         )
+        # Nút hướng dẫn
+        self.tutorial_button = Button(
+            button_x, 410, button_width, button_height,
+            "Tutorials & Rules", (120,120,200), (170,170,255)
+        )
         
         # Nút thoát
         self.exit_button = Button(
-            button_x, 410, button_width, button_height, 
+            button_x, 480, button_width, button_height, 
             "Exit", (150, 150, 150), (200, 200, 200)
         )
         
@@ -81,21 +86,27 @@ class MenuScreen(Screen):
         self.single_player_button.check_hover(mouse_pos)
         self.two_players_button.check_hover(mouse_pos)
         self.vs_ai_button.check_hover(mouse_pos)
+        self.tutorial_button.check_hover(mouse_pos)
         self.exit_button.check_hover(mouse_pos)
         
         # Kiểm tra click
         if self.single_player_button.is_clicked(mouse_pos, mouse_clicked):
             self.manager.game_mode = "single"
-            self.manager.change_state("game")
+            self.manager.change_state("difficulty")
+            #self.manager.change_state("game")
         
         if self.two_players_button.is_clicked(mouse_pos, mouse_clicked):
             self.manager.game_mode = "two_players"
-            self.manager.change_state("game")
+            self.manager.change_state("difficulty")
+            #self.manager.change_state("game")
         
         if self.vs_ai_button.is_clicked(mouse_pos, mouse_clicked):
             self.manager.game_mode = "vs_ai"
-            self.manager.change_state("game")
-        
+            self.manager.change_state("difficulty")
+            #self.manager.change_state("game")
+        if self.tutorial_button.is_clicked(mouse_pos, mouse_clicked):
+            self.manager.change_state("tutorials")
+            
         if self.exit_button.is_clicked(mouse_pos, mouse_clicked):
             pygame.quit()
             sys.exit()
@@ -116,10 +127,11 @@ class MenuScreen(Screen):
         self.single_player_button.draw(self.screen)
         self.two_players_button.draw(self.screen)
         self.vs_ai_button.draw(self.screen)
+        self.tutorial_button.draw(self.screen)
         self.exit_button.draw(self.screen)
         
         # Vẽ thông tin phụ
         info_font = pygame.font.SysFont(None, 24)
-        info_surface = info_font.render("Use arrow keys to navigate the maze", True, WHITE)
+        info_surface = info_font.render("", True, WHITE)
         info_rect = info_surface.get_rect(center=(SCREEN_WIDTH // 2, 500))
         self.screen.blit(info_surface, info_rect)

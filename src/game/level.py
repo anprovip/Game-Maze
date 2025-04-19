@@ -1,5 +1,8 @@
-from maze.generators.dfs_generator import DFSGenerator
+from maze.generators.kruskal_generator import KruskalGenerator
 from config import DEFAULT_MAZE_WIDTH, DEFAULT_MAZE_HEIGHT
+from maze.generators.dfs_generator import DFSGenerator
+from maze.generators.prim_generator import PrimGenerator
+
 
 class Level:
     """
@@ -18,8 +21,10 @@ class Level:
         
         # Khởi tạo các thuật toán tạo mê cung
         self.maze_generators = {
+            "kruskal": KruskalGenerator(),
             "dfs": DFSGenerator(),
-            # Sẽ bổ sung thêm "kruskal" và "prim" sau
+            "prim": PrimGenerator(),
+       
         }
     
     def _get_size_for_level(self):
@@ -43,7 +48,7 @@ class Level:
         else:
             return base_width + 15, base_height + 10
     
-    def generate_maze(self, generator_type="dfs"):
+    def generate_maze(self, generator_type):
         """
         Tạo mê cung với thuật toán đã chọn.
         
