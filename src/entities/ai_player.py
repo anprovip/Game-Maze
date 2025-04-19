@@ -9,7 +9,7 @@ class AIPlayer(Player):
     độ khó chỉ ảnh hưởng đến tốc độ di chuyển.
     """
 
-    def __init__(self, x, y, difficulty="easy"):
+    def __init__(self, x, y, difficulty="easy", image_path='assets/img/player.png'):
         """
         Khởi tạo người chơi AI tại vị trí (x, y).
         
@@ -17,14 +17,19 @@ class AIPlayer(Player):
             x (int): Tọa độ x ban đầu (ô)
             y (int): Tọa độ y ban đầu (ô)
             difficulty (str): "easy", "medium", hoặc "hard"
+            image_path (str): Đường dẫn tới hình ảnh của người chơi
         """
-        super().__init__(x, y, color=BLUE)
+        super().__init__(x, y, color=BLUE, image_path=image_path)
         self.difficulty = difficulty
         self.path = []
         self.path_index = 0
         self.move_timer = 0
         self.update_rate = self._get_update_rate()
         self.recalculate_counter = 0  # Đếm để tính lại đường đi định kỳ
+        # For hard difficulty freeze cycle
+        self.hard_freezing = False
+        self.last_freeze_cycle_tick = pygame.time.get_ticks()
+        self.freeze_start_tick = None
 
     def _get_update_rate(self):
         """
@@ -34,11 +39,11 @@ class AIPlayer(Player):
         """
         # Giảm giá trị để AI di chuyển nhanh hơn
         if self.difficulty == "easy":
-            return 20  # giảm từ 30 xuống 20
+            return 35  # rất chậm
         elif self.difficulty == "medium":
-            return 10  # giảm từ 15 xuống 10
+            return 25  # chậm hơn một chút
         else:  # hard
-            return 5   # giảm từ 7 xuống 5
+            return 15   # di chuyển mỗi frame, cực nhanh
 
     def _calculate_bfs_path(self, maze):
         """
@@ -187,6 +192,19 @@ class AIPlayer(Player):
         """
         Cập nhật vị trí AI dựa trên đường đi đã tính.
         """
+        now = pygame.time.get_ticks()
+        # Hard-mode: freeze every 15s for 2s
+        if self.difficulty == "hard":
+            if not self.hard_freezing and now - self.last_freeze_cycle_tick >= 10000:
+                self.hard_freezing = True
+                self.freeze_start_tick = now
+            if self.hard_freezing:
+                if now - self.freeze_start_tick < 2000:
+                    return
+                # end freeze
+                self.hard_freezing = False
+                self.last_freeze_cycle_tick = now
+        
         # Tăng bộ đếm thời gian
         self.move_timer += 1
         self.recalculate_counter += 1

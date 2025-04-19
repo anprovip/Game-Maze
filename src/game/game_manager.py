@@ -2,6 +2,8 @@ import pygame
 from ui.menu_screen import MenuScreen
 from ui.game_screen import GameScreen
 from ui.pause_screen import PauseScreen
+from ui.tutorial_screen import TutorialScreen
+from ui.difficulty_screen import DifficultyScreen
 
 class GameManager:
     """
@@ -21,7 +23,9 @@ class GameManager:
         self.states = {
             "menu": MenuScreen(self),
             "game": GameScreen(self),
-            "pause": PauseScreen(self)
+            "pause": PauseScreen(self),
+            "tutorials": TutorialScreen(self),
+            "difficulty": DifficultyScreen(self)
         }
         
         # Trạng thái hiện tại
