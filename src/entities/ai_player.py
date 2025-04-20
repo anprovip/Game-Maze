@@ -33,11 +33,11 @@ class AIPlayer(Player):
     def _get_update_rate(self):
         """Xác định tốc độ di chuyển dựa trên độ khó."""
         if self.difficulty == "easy":
-            return 10  # Chậm hơn một chút để người chơi dễ vượt
+            return 14  # Chậm hơn một chút để người chơi dễ vượt
         elif self.difficulty == "medium":
-            return 10  # Tốc độ trung bình
+            return 12  # Tốc độ trung bình
         else:  # hard
-            return 12  # Rất nhanh để cạnh tranh
+            return 10  # Rất nhanh để cạnh tranh
 
     def _get_neighbors(self, x, y, maze):
         """Lấy các ô lân cận hợp lệ."""
@@ -116,11 +116,11 @@ class AIPlayer(Player):
 
         # Xử lý chế độ đóng băng ở hard
         if self.difficulty == "hard":
-            if not self.hard_freezing and now - self.last_freeze_cycle_tick >= 10000:
+            if not self.hard_freezing and now - self.last_freeze_cycle_tick >= 3500:
                 self.hard_freezing = True
                 self.freeze_start_tick = now
             if self.hard_freezing:
-                if now - self.freeze_start_tick < 1000:
+                if now - self.freeze_start_tick < 1500:
                     return
                 self.hard_freezing = False
                 self.last_freeze_cycle_tick = now
@@ -171,7 +171,7 @@ class AIPlayer(Player):
         super().draw(screen, offset_x, offset_y)
         
         # Vẽ điểm trung gian nếu có (chỉ để debug)
-        if self.target and True:  # Đổi False thành True để debug
+        if self.target and False:  # Đổi False thành True để debug
             tx, ty = self.target
             pygame.draw.circle(
                 screen, (255, 255, 0),

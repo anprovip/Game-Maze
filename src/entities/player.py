@@ -35,8 +35,9 @@ class Player:
         self.player_img = pygame.image.load(image_path)
         self.player_img = pygame.transform.scale(self.player_img, (CELL_SIZE - 6, CELL_SIZE - 6))
         #Tai am thanh
-        footstep_path = os.path.join(project_root, 'assets', 'sounds', 'cartoon-jump.mp3')
+        footstep_path = os.path.join(project_root, 'assets', 'sounds', 'poyo.mp3')
         self.footstep_sound = pygame.mixer.Sound(footstep_path)
+        self.footstep_sound.set_volume(0.2)
     
     def handle_input(self, keys, player_num=1):
         """
