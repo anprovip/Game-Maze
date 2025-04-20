@@ -80,7 +80,7 @@ python3 src/main.py
 
 ## Tác giả
 
-Nhóm 03 lớp AIAI KHMT-K63
+Nhóm 03 môn AI lớp KHMT-K63
 
 ---
 
