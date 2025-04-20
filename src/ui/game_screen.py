@@ -72,6 +72,17 @@ class GameScreen(Screen):
         self.gen_dirs = ['vertical', 'horizontal_l2r', 'horizontal_r2l']
         self.gen_index = 0
 
+        # Discover maze generator algorithms
+        gen_dir = os.path.join(project_root, 'src', 'maze', 'generators')
+        try:
+            files = [f for f in os.listdir(gen_dir) if f.endswith('_generator.py') and f != 'base_generator.py']
+            files.sort()
+            self.gen_cycle = [f.replace('_generator.py', '') for f in files]
+        except Exception:
+            # Fallback to default list
+            self.gen_cycle = ['prim', 'dfs', 'kruskal']
+        self.gen_cycle_index = 0
+
         # Load volume toggle icons
         self.volume_img = pygame.transform.scale(
             pygame.image.load(os.path.join(project_root, 'assets', 'img', 'volume.png')),
@@ -90,7 +101,14 @@ class GameScreen(Screen):
         """
         # Tạo mê cung mới cho cấp độ hiện tại
         self.current_level = Level(self.manager.level)
-        self.maze = self.current_level.generate_maze(self.manager.maze_generator_type)
+        
+        # Choose next maze generator in sequence
+        gen_type = self.gen_cycle[self.gen_cycle_index]
+        self.gen_cycle_index = (self.gen_cycle_index + 1) % len(self.gen_cycle)
+        # Print generator file being used
+        print(f"[GameScreen] Using maze generator: {gen_type}_generator.py")
+        # Generate maze using selected algorithm
+        self.maze = self.current_level.generate_maze(gen_type)
         
         # Lấy vị trí bắt đầu từ mê cung
         start_x, start_y = self.maze.start_pos
