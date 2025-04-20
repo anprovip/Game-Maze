@@ -9,7 +9,7 @@ class TutorialScreen(Screen):
         self.back_button = Button(
             20, 20, 120, 40, "Back", (200,200,200), (230,230,230)
         )
-        self.font = pygame.font.SysFont("Times New Roman", 28)
+        self.font = pygame.font.SysFont("Times New Roman", 30)
         self.lines = [
           "Điều khiển:",
           "- W  or  ↑: Di chuyển lên trên",
@@ -21,6 +21,7 @@ class TutorialScreen(Screen):
           "- Cố gắng tìm đường đến đích bằng cách di chuyển hợp lý để có thể lấy được kho báu của mê cung.",
           "- Bạn không thể đi qua tường.",
           "- Nhấn Q để tìm kiếm sự trợ giúp.",
+          "- Nhấn R để làm mới màn chơi và mê cung.",
           "- Màn chơi 1 người: Bạn sẽ chơi một mình và cố gắng tìm đường đến đích trong thời gian nhất định.",
           "- Màn chơi 2 người: Bạn sẽ chơi với một người khác và cố gắng tìm đường đến đích trước họ.",
           "- Màn chơi với máy: Bạn sẽ chơi với một AI và cố gắng tìm đường đến đích trước nó.",
