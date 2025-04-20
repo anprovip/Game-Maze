@@ -62,14 +62,25 @@ class MenuScreen(Screen):
         background_path = os.path.join(project_root, 'assets', 'img', 'bg-menu.jpg')
         self.background_image = pygame.image.load(background_path)
         self.background_image = pygame.transform.scale(self.background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
-    
+        
+        # Load volume toggle icons
+        self.volume_img = pygame.transform.scale(
+            pygame.image.load(os.path.join(project_root, 'assets', 'img', 'volume.png')),
+            (40, 40)
+        )
+        self.mute_img = pygame.transform.scale(
+            pygame.image.load(os.path.join(project_root, 'assets', 'img', 'volume-mute.png')),
+            (40, 40)
+        )
+        self.music_btn_rect = self.volume_img.get_rect(topright=(SCREEN_WIDTH - 20, 20))
+        self.music_on = True
     
     def enter(self):
         """
         Được gọi khi màn hình bắt đầu hiển thị.
         """
         # Đường dẫn đến tệp nhạc nền
-        bg_music_path = os.path.join(project_root, 'assets', 'sounds', 'background.mp3')
+        bg_music_path = os.path.join(project_root, 'assets', 'sounds', 'bg-1.mp3')
         
         # Phát nhạc nền
         pygame.mixer.music.load(bg_music_path)
@@ -90,6 +101,10 @@ class MenuScreen(Screen):
         for event in events:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_clicked = True
+                if self.music_btn_rect.collidepoint(event.pos):
+                    self.music_on = not self.music_on
+                    pygame.mixer.music.set_volume(0.5 if self.music_on else 0)
+                    mouse_clicked = False
         
         # Kiểm tra hover
         self.single_player_button.check_hover(mouse_pos)
@@ -144,6 +159,11 @@ class MenuScreen(Screen):
         info_surface = info_font.render("", True, WHITE)
         info_rect = info_surface.get_rect(center=(SCREEN_WIDTH // 2, 500))
         self.screen.blit(info_surface, info_rect)
+        
+        # Draw volume toggle icon
+        icon = self.volume_img if self.music_on else self.mute_img
+        self.screen.blit(icon, self.music_btn_rect)
+    
     def exit(self):
         """
         Được gọi khi thoát khỏi màn hình.

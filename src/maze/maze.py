@@ -15,6 +15,9 @@ class Maze:
     Lớp đại diện cho mê cung, lưu trữ cấu trúc mê cung và cung cấp các phương thức
     để tương tác với mê cung.
     """
+    # Optional callback to record generation steps
+    record_callback = None
+
     def __init__(self, width, height):
         """
         Khởi tạo mê cung trống với kích thước cho trước.
@@ -44,6 +47,9 @@ class Maze:
         self.wall_img = pygame.transform.scale(self.wall_img, (CELL_SIZE, CELL_SIZE))
     
     def set_cell(self, x, y, is_wall):
+        # call hook if set
+        if Maze.record_callback:
+            Maze.record_callback(x, y, is_wall)
         """
         Thiết lập giá trị của một ô trong mê cung.
         

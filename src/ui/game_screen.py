@@ -8,7 +8,7 @@ from ui.button import Button
 from game.level import Level
 from entities.player import Player
 from entities.ai_player import AIPlayer
-from config import SCREEN_WIDTH, SCREEN_HEIGHT, BLACK, WHITE, RED, GREEN, BLUE, CELL_SIZE
+from config import SCREEN_WIDTH, SCREEN_HEIGHT, BLACK, WHITE, RED, GREEN, BLUE, CELL_SIZE, FPS
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 class GameScreen(Screen):
@@ -62,6 +62,27 @@ class GameScreen(Screen):
         self.font = pygame.font.SysFont(None, 36)
         # Thống kê thời gian dừng
         self.pause_start_ticks = None
+
+        # Animation effect list and index counter
+        enum_effects = ['fade', 'flip', 'flipfade', 'wipe', 'spiral', 'shuffle', 'dissolve']
+        self.anim_effects = enum_effects
+        self.anim_index = 0
+
+        # Generation direction list and index counter
+        self.gen_dirs = ['vertical', 'horizontal_l2r', 'horizontal_r2l']
+        self.gen_index = 0
+
+        # Load volume toggle icons
+        self.volume_img = pygame.transform.scale(
+            pygame.image.load(os.path.join(project_root, 'assets', 'img', 'volume.png')),
+            (40, 40)
+        )
+        self.mute_img = pygame.transform.scale(
+            pygame.image.load(os.path.join(project_root, 'assets', 'img', 'volume-mute.png')),
+            (40, 40)
+        )
+        self.music_btn_rect = self.volume_img.get_rect(topright=(SCREEN_WIDTH - 20, 20))
+        self.music_on = True
     
     def enter(self):
         """
@@ -132,6 +153,46 @@ class GameScreen(Screen):
             self.step_limit = shortest + 8
         # Bộ đếm bước
         self.step_counts = [0] * len(self.players)
+        # Setup animation for maze generation
+        self.final_grid = [row[:] for row in self.maze.grid]
+        self.animating = True
+        self.anim_frames = 0
+        self.total_anim_frames = FPS * 4  # 4 seconds animation
+
+        # Choose next effect in sequence
+        self.anim_effect = self.anim_effects[self.anim_index]
+        self.anim_index = (self.anim_index + 1) % len(self.anim_effects)
+
+        # Prepare extra data for effects
+        self.slide_dir = 1  # slide from left by default
+        # build spiral order once
+        tmp_cells = [(x, y) for y in range(self.maze.height) for x in range(self.maze.width)]
+        spiral = []
+        min_x, min_y, max_x, max_y = 0, 0, self.maze.width-1, self.maze.height-1
+        while min_x <= max_x and min_y <= max_y:
+            for x in range(min_x, max_x+1): spiral.append((x, min_y))
+            for y in range(min_y+1, max_y+1): spiral.append((max_x, y))
+            if min_y < max_y:
+                for x in range(max_x-1, min_x-1, -1): spiral.append((x, max_y))
+            if min_x < max_x:
+                for y in range(max_y-1, min_y, -1): spiral.append((min_x, y))
+            min_x += 1; max_x -= 1; min_y += 1; max_y -= 1
+        self.spiral_order = spiral
+        # shuffle rows for 'shuffle' effect
+        self.row_order = list(range(self.maze.height))
+        random.shuffle(self.row_order)
+        # random dissolve order for 'dissolve' effect
+        self.dissolve_order = random.sample(tmp_cells, len(tmp_cells))
+
+        # Choose next generation direction in sequence
+        self.gen_dir = self.gen_dirs[self.gen_index]
+        self.gen_index = (self.gen_index + 1) % len(self.gen_dirs)
+
+        # Play game background music
+        bg2_path = os.path.join(project_root, 'assets', 'sounds', 'bg-2.mp3')
+        pygame.mixer.music.load(bg2_path)
+        pygame.mixer.music.set_volume(0.3)
+        pygame.mixer.music.play(-1)
     
     def exit(self):
         """
@@ -187,6 +248,13 @@ class GameScreen(Screen):
             events: Danh sách các sự kiện pygame
         """
         
+        # Animate maze generation
+        if hasattr(self, 'animating') and self.animating:
+            self.anim_frames += 1
+            if self.anim_frames >= self.total_anim_frames:
+                self.animating = False
+            return
+
         if self.game_over:
             # Phát âm thanh chiến thắng nếu chưa phát
             if not hasattr(self, 'victory_sound_played') or not self.victory_sound_played:
@@ -246,6 +314,11 @@ class GameScreen(Screen):
                     if not self.show_hint:
                         self.calculate_hint_path()
                     self.show_hint = not self.show_hint
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if self.music_btn_rect.collidepoint(event.pos):
+                    self.music_on = not self.music_on
+                    pygame.mixer.music.set_volume(0.5 if self.music_on else 0)
+                    mouse_clicked = False
         
         # Kiểm tra nút pause và back
         self.pause_button.check_hover(mouse_pos)
@@ -307,6 +380,7 @@ class GameScreen(Screen):
                 if not self.players[0].is_at_end(self.maze) and not self.players[1].is_at_end(self.maze):
                     self.game_over = True
                     self.winner = None
+                    self.both_timeout = True
             if self.step_limit:
                 over = [cnt > self.step_limit for cnt in self.step_counts]
                 if over[0] and not over[1]:
@@ -318,17 +392,127 @@ class GameScreen(Screen):
                 elif over[0] and over[1]:
                     self.game_over = True
                     self.winner = None
+        elif self.manager.game_mode == "vs_ai":
+            # Người chơi thua nếu vượt quá thời gian
+            if self.time_limit and elapsed > self.time_limit:
+                self.game_over = True
+                self.winner = 1
+            # Người chơi thua nếu vượt quá số bước
+            if self.step_limit and self.step_counts[0] > self.step_limit:
+                self.game_over = True
+                self.winner = 1
     
     def draw(self):
         """
         Vẽ màn hình game.
         """
-        self.screen.fill((50, 80, 50))
-        
+        # Compute positions
         maze_pixel_width = self.maze.width * CELL_SIZE
         maze_pixel_height = self.maze.height * CELL_SIZE
         offset_x = (SCREEN_WIDTH - maze_pixel_width) // 2
         offset_y = (SCREEN_HEIGHT - maze_pixel_height) // 2
+
+        # Animate maze drawing
+        if getattr(self, 'animating', False):
+            self.screen.fill((50, 80, 50))
+            progress = self.anim_frames / self.total_anim_frames
+            h, w = self.maze.height, self.maze.width
+            offx, offy = offset_x, offset_y
+
+            if self.gen_dir == 'vertical':
+                total = h; full = int(progress * total); frac = (progress*total) - full
+                # draw fully revealed rows
+                for y in range(full):
+                    for x in range(w):
+                        pos = (offx + x*CELL_SIZE, offy + y*CELL_SIZE)
+                        self.screen.blit(self.maze.wall_img if self.final_grid[y][x] and (x,y)!=self.maze.end_pos else self.maze.bg_img, pos)
+                # animate current row 'full'
+                if full < h:
+                    for x in range(w):
+                        cell_pos = (offx + x*CELL_SIZE, offy + full*CELL_SIZE)
+                        is_wall = self.final_grid[full][x] and (x,full)!=self.maze.end_pos
+                        # existing per-cell effect code for fade/flip etc replacing base_pos with cell_pos and index x
+                        if self.anim_effect == 'fade':
+                            alpha = int(frac * 255)
+                            img = self.maze.wall_img.copy() if is_wall else self.maze.bg_img
+                            img.set_alpha(alpha)
+                            self.screen.blit(img, cell_pos)
+                        elif self.anim_effect == 'flip':
+                            if frac < 0.5:
+                                scale_h = int((1 - frac * 2) * CELL_SIZE)
+                                img_base = self.maze.wall_img if is_wall else self.maze.bg_img
+                            else:
+                                scale_h = int((frac - 0.5) * 2 * CELL_SIZE)
+                                img_base = pygame.transform.flip(self.maze.wall_img if is_wall else self.maze.bg_img, False, True)
+                            if scale_h > 0:
+                                temp = pygame.transform.scale(img_base, (CELL_SIZE, scale_h))
+                                y_off = (CELL_SIZE - scale_h) // 2
+                                self.screen.blit(temp, (cell_pos[0], cell_pos[1] + y_off))
+                        else:  # 'flipfade'
+                            alpha = int(frac * 255)
+                            if frac < 0.5:
+                                scale_h = int((1 - frac * 2) * CELL_SIZE)
+                                img_base = self.maze.wall_img if is_wall else self.maze.bg_img
+                            else:
+                                scale_h = int((frac - 0.5) * 2 * CELL_SIZE)
+                                img_base = pygame.transform.flip(self.maze.wall_img if is_wall else self.maze.bg_img, False, True)
+                            if scale_h > 0:
+                                temp = pygame.transform.scale(img_base, (CELL_SIZE, scale_h))
+                                temp.set_alpha(alpha)
+                                y_off = (CELL_SIZE - scale_h) // 2
+                                self.screen.blit(temp, (cell_pos[0], cell_pos[1] + y_off))
+                return
+            else:
+                total = w; full = int(progress * total); frac = (progress*total) - full
+                # determine revealed and current column
+                if self.gen_dir == 'horizontal_l2r':
+                    reveal_cond = lambda x: x < full
+                    current_col = full if full < w else None
+                else:  # horizontal_r2l
+                    reveal_cond = lambda x: x >= w-full
+                    current_col = w-full-1 if full < w else None
+                for y in range(h):
+                    for x in range(w):
+                        pos = (offx + x*CELL_SIZE, offy + y*CELL_SIZE)
+                        if reveal_cond(x):
+                            self.screen.blit(self.maze.wall_img if self.final_grid[y][x] and (x,y)!=self.maze.end_pos else self.maze.bg_img, pos)
+                        elif x == current_col:
+                            cell_pos = pos; is_wall = self.final_grid[y][x] and (x,y)!=self.maze.end_pos
+                            # existing per-cell effect code for fade/flip etc using frac, cell_pos
+                            if self.anim_effect == 'fade':
+                                alpha = int(frac * 255)
+                                img = self.maze.wall_img.copy() if is_wall else self.maze.bg_img
+                                img.set_alpha(alpha)
+                                self.screen.blit(img, cell_pos)
+                            elif self.anim_effect == 'flip':
+                                if frac < 0.5:
+                                    scale_h = int((1 - frac * 2) * CELL_SIZE)
+                                    img_base = self.maze.wall_img if is_wall else self.maze.bg_img
+                                else:
+                                    scale_h = int((frac - 0.5) * 2 * CELL_SIZE)
+                                    img_base = pygame.transform.flip(self.maze.wall_img if is_wall else self.maze.bg_img, False, True)
+                                if scale_h > 0:
+                                    temp = pygame.transform.scale(img_base, (CELL_SIZE, scale_h))
+                                    y_off = (CELL_SIZE - scale_h) // 2
+                                    self.screen.blit(temp, (cell_pos[0], cell_pos[1] + y_off))
+                            else:  # 'flipfade'
+                                alpha = int(frac * 255)
+                                if frac < 0.5:
+                                    scale_h = int((1 - frac * 2) * CELL_SIZE)
+                                    img_base = self.maze.wall_img if is_wall else self.maze.bg_img
+                                else:
+                                    scale_h = int((frac - 0.5) * 2 * CELL_SIZE)
+                                    img_base = pygame.transform.flip(self.maze.wall_img if is_wall else self.maze.bg_img, False, True)
+                                if scale_h > 0:
+                                    temp = pygame.transform.scale(img_base, (CELL_SIZE, scale_h))
+                                    temp.set_alpha(alpha)
+                                    y_off = (CELL_SIZE - scale_h) // 2
+                                    self.screen.blit(temp, (cell_pos[0], cell_pos[1] + y_off))
+                        else:
+                            self.screen.blit(self.maze.bg_img, pos)
+                return
+
+        self.screen.fill((50, 80, 50))
         
         self.maze.draw(self.screen, offset_x, offset_y)
         
@@ -392,6 +576,11 @@ class GameScreen(Screen):
                 text_rect = text_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 20))
                 self.screen.blit(text_surface, text_rect)
             
+            if getattr(self, 'both_timeout', False):
+                msg = self.font.render("Time Out! Both players lose. No players win.", True, WHITE)
+                rect = msg.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 - 60))
+                self.screen.blit(msg, rect)
+            
             hint_surface = self.font.render("Press Enter to return to menu", True, WHITE)
             hint_rect = hint_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 20))
             self.screen.blit(hint_surface, hint_rect)
@@ -425,3 +614,7 @@ class GameScreen(Screen):
         text = self.font.render("Press R to regenerate the whole maze", True, WHITE)
         text_rect = text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 20))
         self.screen.blit(text, text_rect)
+
+        # Draw music toggle icon
+        icon = self.volume_img if self.music_on else self.mute_img
+        self.screen.blit(icon, self.music_btn_rect)
